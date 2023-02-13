@@ -10,6 +10,7 @@ great_expectations = "*"
 kfp = "*"
 kfp-tekton = "*"
 minio = "*"
+numpy = "*"
 
 [dev-packages]
 flake8 = "*"
