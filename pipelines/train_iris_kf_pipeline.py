@@ -157,11 +157,11 @@ def train_model() -> (
 # %%
 component_upload_iris_data = components.create_component_from_func(
     upload_iris_data,
-    base_image="public.ecr.aws/j1r0q0g6/notebooks/notebook-servers/jupyter-scipy:v1.5.0",
+    base_image="image-registry.openshift-image-registry.svc:5000/mlops-demo-pipelines/iris-training",
 )
 component_train_model = components.create_component_from_func(
     train_model,
-    base_image="public.ecr.aws/j1r0q0g6/notebooks/notebook-servers/jupyter-scipy:v1.5.0",
+    base_image="image-registry.openshift-image-registry.svc:5000/mlops-demo-pipelines/iris-training",
 )
 
 

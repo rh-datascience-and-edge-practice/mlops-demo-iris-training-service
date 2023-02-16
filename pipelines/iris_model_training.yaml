@@ -102,13 +102,13 @@ spec:
             _parsed_args = vars(_parser.parse_args())
 
             _outputs = upload_iris_data(**_parsed_args)
-          image: public.ecr.aws/j1r0q0g6/notebooks/notebook-servers/jupyter-scipy:v1.5.0
+          image: image-registry.openshift-image-registry.svc:5000/mlops-demo-pipelines/iris-training
         metadata:
           labels:
             pipelines.kubeflow.org/cache_enabled: "true"
           annotations:
             pipelines.kubeflow.org/component_spec_digest: '{"name": "Upload iris data",
-              "outputs": [], "version": "Upload iris data@sha256=d44ef089a560d36669ed5e1bdb8f7b33b4248dcaf7abe76f5beeea282332d206"}'
+              "outputs": [], "version": "Upload iris data@sha256=34ed5fd88cb57bf747f375997178abfe24ad2d18bef53be769095c9ca11d1f99"}'
     - name: train-model
       taskSpec:
         steps:
@@ -225,7 +225,7 @@ spec:
                     pass
                 with open(output_file, 'w') as f:
                     f.write(_output_serializers[idx](_outputs[idx]))
-          image: public.ecr.aws/j1r0q0g6/notebooks/notebook-servers/jupyter-scipy:v1.5.0
+          image: image-registry.openshift-image-registry.svc:5000/mlops-demo-pipelines/iris-training
         stepTemplate:
           volumeMounts:
           - name: mlpipeline-ui-metadata
@@ -244,6 +244,6 @@ spec:
             pipelines.kubeflow.org/component_spec_digest: '{"name": "Train model",
               "outputs": [{"name": "mlpipeline_ui_metadata", "type": "UI_metadata"},
               {"name": "mlpipeline_metrics", "type": "Metrics"}], "version": "Train
-              model@sha256=9afd2b9ed1abb9b4c82aa7ae7644c736e30ce4afe6db164ec48e98ef759e6be5"}'
+              model@sha256=62402c105868742668a8e72df08e79033fb6df6f999debe21701be337b9fca8c"}'
       runAfter:
       - upload-iris-data
