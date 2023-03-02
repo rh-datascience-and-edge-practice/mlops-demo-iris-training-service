@@ -81,7 +81,6 @@ def train_model() -> (
     import json
     import logging
     import os
-    import subprocess
     import tempfile
     import numpy as np
     from minio import Minio

@@ -1,0 +1,290 @@
+apiVersion: tekton.dev/v1beta1
+kind: PipelineRun
+metadata:
+  name: iris-training-pipeline
+  annotations:
+    tekton.dev/output_artifacts: '{"train-model": [{"key": "artifacts/$PIPELINERUN/train-model/mlpipeline-ui-metadata.tgz",
+      "name": "mlpipeline-ui-metadata", "path": "/tmp/outputs/mlpipeline_ui_metadata/data"},
+      {"key": "artifacts/$PIPELINERUN/train-model/mlpipeline-metrics.tgz", "name":
+      "mlpipeline-metrics", "path": "/tmp/outputs/mlpipeline_metrics/data"}]}'
+    tekton.dev/input_artifacts: '{}'
+    tekton.dev/artifact_bucket: mlpipeline
+    tekton.dev/artifact_endpoint: minio-service.kubeflow:9000
+    tekton.dev/artifact_endpoint_scheme: http://
+    tekton.dev/artifact_items: '{"train-model": [["mlpipeline-ui-metadata", "/tmp/outputs/mlpipeline_ui_metadata/data"],
+      ["mlpipeline-metrics", "/tmp/outputs/mlpipeline_metrics/data"]], "upload-iris-data":
+      []}'
+    sidecar.istio.io/inject: "false"
+    tekton.dev/template: ''
+    pipelines.kubeflow.org/big_data_passing_format: $(workspaces.$TASK_NAME.path)/artifacts/$ORIG_PR_NAME/$TASKRUN_NAME/$TASK_PARAM_NAME
+    pipelines.kubeflow.org/pipeline_spec: '{"name": "iris-training-pipeline"}'
+  labels:
+    pipelines.kubeflow.org/pipelinename: ''
+    pipelines.kubeflow.org/generation: ''
+spec:
+  pipelineSpec:
+    tasks:
+    - name: upload-iris-data
+      taskSpec:
+        steps:
+        - name: main
+          command:
+          - sh
+          - -ec
+          - |
+            program_path=$(mktemp)
+            printf "%s" "$0" > "$program_path"
+            python3 -u "$program_path" "$@"
+          - |
+            def upload_iris_data():
+                from sklearn import datasets
+                import pandas as pd
+                import numpy as np
+                from minio import Minio
+                from sklearn.model_selection import train_test_split
+
+                # Helper functions
+                def load_iris_data():
+                    iris = datasets.load_iris()
+                    data = pd.DataFrame(
+                        {
+                            "sepal length": iris.data[:, 0],
+                            "sepal width": iris.data[:, 1],
+                            "petal length": iris.data[:, 2],
+                            "petal width": iris.data[:, 3],
+                            "species": iris.target,
+                        }
+                    )
+                    return data
+
+                def load_minio():
+                    minio_client = Minio(
+                        "minio-service.mlops-demo-datascience.svc.cluster.local:9000",
+                        access_key="minio",
+                        secret_key="minio123",
+                        secure=False,
+                    )
+                    minio_bucket = "mlpipeline"
+
+                    return minio_client, minio_bucket
+
+                ######
+
+                # Get Data from Iris Data Set and push to Minio Storage
+                iris_data = load_iris_data()
+                minio_client, minio_bucket = load_minio()
+
+                X = iris_data[
+                    ["sepal length", "sepal width", "petal length", "petal width"]
+                ]  # Features
+                y = iris_data["species"]  # Labels
+
+                # Split dataset into training set and test set
+                x_train, x_test, y_train, y_test = train_test_split(
+                    X, y, test_size=0.3
+                )  # 70% training and 30% test
+
+                # save to numpy file, store in Minio
+                np.save("/tmp/x_train.npy", x_train)
+                minio_client.fput_object(minio_bucket, "x_train", "/tmp/x_train.npy")
+
+                np.save("/tmp/y_train.npy", y_train)
+                minio_client.fput_object(minio_bucket, "y_train", "/tmp/y_train.npy")
+
+                np.save("/tmp/x_test.npy", x_test)
+                minio_client.fput_object(minio_bucket, "x_test", "/tmp/x_test.npy")
+
+                np.save("/tmp/y_test.npy", y_test)
+                minio_client.fput_object(minio_bucket, "y_test", "/tmp/y_test.npy")
+
+            import argparse
+            _parser = argparse.ArgumentParser(prog='Upload iris data', description='')
+            _parsed_args = vars(_parser.parse_args())
+
+            _outputs = upload_iris_data(**_parsed_args)
+          image: image-registry.openshift-image-registry.svc:5000/mlops-demo-pipelines/iris-training
+        metadata:
+          labels:
+            pipelines.kubeflow.org/cache_enabled: "true"
+          annotations:
+            pipelines.kubeflow.org/component_spec_digest: '{"name": "Upload iris data",
+              "outputs": [], "version": "Upload iris data@sha256=34ed5fd88cb57bf747f375997178abfe24ad2d18bef53be769095c9ca11d1f99"}'
+    - name: train-model
+      taskSpec:
+        steps:
+        - name: main
+          args:
+          - '----output-paths'
+          - /tmp/outputs/mlpipeline_ui_metadata/data
+          - /tmp/outputs/mlpipeline_metrics/data
+          command:
+          - sh
+          - -ec
+          - |
+            program_path=$(mktemp)
+            printf "%s" "$0" > "$program_path"
+            python3 -u "$program_path" "$@"
+          - |
+            def train_model():
+
+                import boto3
+                import joblib
+                import json
+                import logging
+                import os
+                import tempfile
+                import numpy as np
+                from minio import Minio
+                from datetime import date
+                from sklearn.ensemble import RandomForestClassifier
+                from sklearn.metrics import accuracy_score
+
+                # HELPER FUNCTIONS
+                def load_minio():
+                    minio_client = Minio(
+                        "minio-service.mlops-demo-datascience.svc.cluster.local:9000",
+                        access_key="minio",
+                        secret_key="minio123",
+                        secure=False,
+                    )
+                    minio_bucket = "mlpipeline"
+
+                    return minio_client, minio_bucket
+
+                def get_s3_client(ak, sk):
+                    service_point = "http://s3.openshift-storage.svc.cluster.local"
+                    s3client = boto3.client(
+                        "s3",
+                        "us-east-1",
+                        endpoint_url=service_point,
+                        aws_access_key_id=ak,
+                        aws_secret_access_key=sk,
+                        use_ssl=True if "https" in service_point else False,
+                        verify=False,
+                    )
+                    return s3client
+
+                def load_model_into_s3(model, fileName, ak, bn, sk):
+                    logging.basicConfig(level=logging.WARNING)
+                    s3client = get_s3_client(ak, sk)
+
+                    try:
+                        with tempfile.TemporaryFile() as tempy:
+                            joblib.dump(model, tempy)
+                            tempy.seek(0)
+                            s3client.put_object(Body=tempy.read(), Bucket=bn, Key=fileName)
+
+                        logging.info(f"{fileName} saved to s3 bucket {bn}")
+                    except Exception as e:
+                        raise logging.exception(e)
+
+                # Create Model and Train
+                minio_client, minio_bucket = load_minio()
+                minio_client.fget_object(minio_bucket, "x_train", "/tmp/x_train.npy")
+                x_train = np.load("/tmp/x_train.npy")
+
+                minio_client.fget_object(minio_bucket, "y_train", "/tmp/y_train.npy")
+                y_train = np.load("/tmp/y_train.npy")
+
+                minio_client.fget_object(minio_bucket, "x_test", "/tmp/x_test.npy")
+                x_test = np.load("/tmp/x_test.npy")
+
+                minio_client.fget_object(minio_bucket, "y_test", "/tmp/y_test.npy")
+                y_test = np.load("/tmp/y_test.npy")
+
+                # Create a Gaussian Classifier
+                model = RandomForestClassifier(n_estimators=100)
+
+                # Train the model using the training sets y_pred=clf.predict(X_test)
+                model.fit(x_train, y_train)
+                y_pred = model.predict(x_test)
+
+                # save the model to disk
+                date = date.today()
+                fileName = f"iris-model_{date}"
+                # Upload Model into S3
+                ## Get creds from k8s secrets
+                ak = os.environ["ak"]
+                sk = os.environ["sk"]
+                bn = os.environ["bn"]
+                load_model_into_s3(model, fileName, ak, bn, sk)
+
+                # Output accuracy
+                accuracy_score_metric = accuracy_score(y_test, y_pred)
+
+                metrics = {
+                    "metrics": [
+                        {
+                            "name": "model_accuracy",
+                            "numberValue": float(accuracy_score_metric),
+                            "format": "PERCENTAGE",
+                        }
+                    ]
+                }
+                metadata = {"metadata": [{"placeholder_key": "placeholder_value"}]}
+
+                from collections import namedtuple
+
+                output = namedtuple("output", ["mlpipeline_ui_metadata", "mlpipeline_metrics"])
+                return output(json.dumps(metadata), json.dumps(metrics))
+
+            import argparse
+            _parser = argparse.ArgumentParser(prog='Train model', description='')
+            _parser.add_argument("----output-paths", dest="_output_paths", type=str, nargs=2)
+            _parsed_args = vars(_parser.parse_args())
+            _output_files = _parsed_args.pop("_output_paths", [])
+
+            _outputs = train_model(**_parsed_args)
+
+            _output_serializers = [
+                str,
+                str,
+
+            ]
+
+            import os
+            for idx, output_file in enumerate(_output_files):
+                try:
+                    os.makedirs(os.path.dirname(output_file))
+                except OSError:
+                    pass
+                with open(output_file, 'w') as f:
+                    f.write(_output_serializers[idx](_outputs[idx]))
+          env:
+          - name: ak
+            valueFrom:
+              secretKeyRef:
+                key: AWS_ACCESS_KEY_ID
+                name: iris-model
+          - name: sk
+            valueFrom:
+              secretKeyRef:
+                key: AWS_SECRET_ACCESS_KEY
+                name: iris-model
+          - name: bn
+            valueFrom:
+              secretKeyRef:
+                key: BUCKET_NAME
+                name: iris-model
+          image: image-registry.openshift-image-registry.svc:5000/mlops-demo-pipelines/iris-training
+        stepTemplate:
+          volumeMounts:
+          - name: mlpipeline-ui-metadata
+            mountPath: /tmp/outputs/mlpipeline_ui_metadata
+          - name: mlpipeline-metrics
+            mountPath: /tmp/outputs/mlpipeline_metrics
+        volumes:
+        - name: mlpipeline-ui-metadata
+          emptyDir: {}
+        - name: mlpipeline-metrics
+          emptyDir: {}
+        metadata:
+          labels:
+            pipelines.kubeflow.org/cache_enabled: "true"
+          annotations:
+            pipelines.kubeflow.org/component_spec_digest: '{"name": "Train model",
+              "outputs": [{"name": "mlpipeline_ui_metadata", "type": "UI_metadata"},
+              {"name": "mlpipeline_metrics", "type": "Metrics"}], "version": "Train
+              model@sha256=90b4cfa1cfd1e13ea9bb4ff34d2802e278ea7b72d1e743dfbae488fdff5ff976"}'
+      runAfter:
+      - upload-iris-data
