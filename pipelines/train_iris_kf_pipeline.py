@@ -1,4 +1,3 @@
-
 from kfp import dsl
 import kfp.components as components
 from kubernetes.client.models import V1EnvVar
@@ -90,7 +89,6 @@ def train_model() -> (
     from sklearn.ensemble import RandomForestClassifier
     from sklearn.metrics import accuracy_score
 
-
     # HELPER FUNCTIONS
     def load_minio():
         minio_client = Minio(
@@ -102,32 +100,33 @@ def train_model() -> (
         minio_bucket = "mlpipeline"
 
         return minio_client, minio_bucket
-    
+
     def get_s3_client(ak, sk):
-        service_point = 'http://s3.openshift-storage.svc.cluster.local'
-        s3client = boto3.client('s3',
-                            'us-east-1', 
-                            endpoint_url=service_point,
-                            aws_access_key_id = ak,
-                            aws_secret_access_key = sk,
-                            use_ssl = True if 'https' in service_point else False,
-                            verify = False )
+        service_point = "http://s3.openshift-storage.svc.cluster.local"
+        s3client = boto3.client(
+            "s3",
+            "us-east-1",
+            endpoint_url=service_point,
+            aws_access_key_id=ak,
+            aws_secret_access_key=sk,
+            use_ssl=True if "https" in service_point else False,
+            verify=False,
+        )
         return s3client
 
     def load_model_into_s3(model, fileName, ak, bn, sk):
         logging.basicConfig(level=logging.WARNING)
         s3client = get_s3_client(ak, sk)
-        
+
         try:
             with tempfile.TemporaryFile() as tempy:
                 joblib.dump(model, tempy)
                 tempy.seek(0)
                 s3client.put_object(Body=tempy.read(), Bucket=bn, Key=fileName)
-            
-            logging.info(f'{fileName} saved to s3 bucket {bn}')
+
+            logging.info(f"{fileName} saved to s3 bucket {bn}")
         except Exception as e:
             raise logging.exception(e)
-
 
     # Create Model and Train
     minio_client, minio_bucket = load_minio()
@@ -150,18 +149,16 @@ def train_model() -> (
     model.fit(x_train, y_train)
     y_pred = model.predict(x_test)
 
-
     # save the model to disk
     date = date.today()
-    fileName = f'iris-model_{date}'
+    fileName = f"iris-model_{date}"
     # Upload Model into S3
     ## Get creds from k8s secrets
     ak = os.environ["ak"]
     sk = os.environ["sk"]
     bn = os.environ["bn"]
     load_model_into_s3(model, fileName, ak, bn, sk)
-    
-    
+
     # Output accuracy
     accuracy_score_metric = accuracy_score(y_test, y_pred)
 
@@ -191,36 +188,40 @@ component_train_model = components.create_component_from_func(
     base_image="image-registry.openshift-image-registry.svc:5000/mlops-demo-pipelines/iris-training",
 )
 
+
 @dsl.pipeline(name="iris-training-pipeline")
 def iris_model_training():
     step1 = component_upload_iris_data()
     step2 = component_train_model()
-    step2.add_env_variable(V1EnvVar(
-                name="ak",
-                value_from=k8s_client.V1EnvVarSource(secret_key_ref=k8s_client.V1SecretKeySelector(
-                    name="iris-model",
-                    key="AWS_ACCESS_KEY_ID"
-                    )
+    step2.add_env_variable(
+        V1EnvVar(
+            name="ak",
+            value_from=k8s_client.V1EnvVarSource(
+                secret_key_ref=k8s_client.V1SecretKeySelector(
+                    name="iris-model", key="AWS_ACCESS_KEY_ID"
                 )
-            )
+            ),
+        )
     )
-    step2.add_env_variable(V1EnvVar(
-                name="sk",
-                value_from=k8s_client.V1EnvVarSource(secret_key_ref=k8s_client.V1SecretKeySelector(
-                    name="iris-model",
-                    key="AWS_SECRET_ACCESS_KEY"
-                    )
+    step2.add_env_variable(
+        V1EnvVar(
+            name="sk",
+            value_from=k8s_client.V1EnvVarSource(
+                secret_key_ref=k8s_client.V1SecretKeySelector(
+                    name="iris-model", key="AWS_SECRET_ACCESS_KEY"
                 )
-            )
+            ),
+        )
     )
-    step2.add_env_variable(V1EnvVar(
-                name="bn",
-                value_from=k8s_client.V1EnvVarSource(secret_key_ref=k8s_client.V1SecretKeySelector(
-                    name="iris-model",
-                    key="BUCKET_NAME"
-                    )
+    step2.add_env_variable(
+        V1EnvVar(
+            name="bn",
+            value_from=k8s_client.V1EnvVarSource(
+                secret_key_ref=k8s_client.V1SecretKeySelector(
+                    name="iris-model", key="BUCKET_NAME"
                 )
-            )
+            ),
+        )
     )
     step2.after(step1)
 
