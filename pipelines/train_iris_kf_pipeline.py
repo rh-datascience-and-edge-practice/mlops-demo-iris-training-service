@@ -1,10 +1,10 @@
-# %%
+
 from kfp import dsl
 import kfp.components as components
 from kubernetes.client.models import V1EnvVar
 from kubernetes import client as k8s_client
 
-# %%
+
 def upload_iris_data():
     from sklearn import datasets
     import pandas as pd
