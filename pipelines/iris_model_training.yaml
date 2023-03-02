@@ -124,26 +124,31 @@ spec:
             program_path=$(mktemp)
             printf "%s" "$0" > "$program_path"
             python3 -u "$program_path" "$@"
-          - "def train_model():\n    import pickle\n    import boto3\n    import json\n\
-            \    import os\n    import numpy as np\n    from minio import Minio\n\
+          - "def train_model():\n\n    import boto3\n    import joblib\n    import\
+            \ json\n    import logging\n    import os\n    import subprocess\n   \
+            \ import tempfile\n    import numpy as np\n    from minio import Minio\n\
             \    from datetime import date\n    from sklearn.ensemble import RandomForestClassifier\n\
             \    from sklearn.metrics import accuracy_score\n\n    # HELPER FUNCTIONS\n\
             \    def load_minio():\n        minio_client = Minio(\n            \"\
             minio-service.mlops-demo-datascience.svc.cluster.local:9000\",\n     \
             \       access_key=\"minio\",\n            secret_key=\"minio123\",\n\
             \            secure=False,\n        )\n        minio_bucket = \"mlpipeline\"\
-            \n\n        return minio_client, minio_bucket\n\n    def load_model_into_s3(model,\
-            \ fileName, ak, sk):\n        bucket_name = \"obc-mlops-demo-datascience-iris-model\"\
-            \n        service_point = 'http://s3.openshift-storage.svc.cluster.local'\n\
+            \n\n        return minio_client, minio_bucket\n\n    def get_s3_client(ak,\
+            \ sk):\n        service_point = 'http://s3.openshift-storage.svc.cluster.local'\n\
             \        s3client = boto3.client('s3',\n                            'us-east-1',\
             \ \n                            endpoint_url=service_point,\n        \
             \                    aws_access_key_id = ak,\n                       \
             \     aws_secret_access_key = sk,\n                            use_ssl\
             \ = True if 'https' in service_point else False,\n                   \
-            \         verify = False )\n\n        #s3client.upload_file(fileName,\
-            \ bucket_name, fileName)\n        s3client.put_object(body=b'bytes'|model,\
-            \ bucket=bucket_name, key=fileName)\n\n    # Create Model and Train\n\
-            \    minio_client, minio_bucket = load_minio()\n    minio_client.fget_object(minio_bucket,\
+            \         verify = False )\n        return s3client\n\n    def load_model_into_s3(model,\
+            \ fileName, ak, bn, sk):\n        logging.basicConfig(level=logging.WARNING)\n\
+            \        s3client = get_s3_client(ak, sk)\n\n        try:\n          \
+            \  with tempfile.TemporaryFile() as tempy:\n                joblib.dump(model,\
+            \ tempy)\n                tempy.seek(0)\n                s3client.put_object(Body=tempy.read(),\
+            \ Bucket=bn, Key=fileName)\n\n            logging.info(f'{fileName} saved\
+            \ to s3 bucket {bn}')\n        except Exception as e:\n            raise\
+            \ logging.exception(e)\n\n    # Create Model and Train\n    minio_client,\
+            \ minio_bucket = load_minio()\n    minio_client.fget_object(minio_bucket,\
             \ \"x_train\", \"/tmp/x_train.npy\")\n    x_train = np.load(\"/tmp/x_train.npy\"\
             )\n\n    minio_client.fget_object(minio_bucket, \"y_train\", \"/tmp/y_train.npy\"\
             )\n    y_train = np.load(\"/tmp/y_train.npy\")\n\n    minio_client.fget_object(minio_bucket,\
@@ -154,11 +159,10 @@ spec:
             \    # Train the model using the training sets y_pred=clf.predict(X_test)\n\
             \    model.fit(x_train, y_train)\n    y_pred = model.predict(x_test)\n\
             \n    # save the model to disk\n    date = date.today()\n    fileName\
-            \ = f'iris-model_{date}'\n    #print(\"dumping model to local dir\")\n\
-            \    #pickle.dump(model, open(fileName, 'wb')) \n    # Upload Model into\
-            \ S3\n    ## Get creds from k8s secrets\n    ak = os.environ[\"ak\"]\n\
-            \    sk = os.environ[\"sk\"]\n    load_model_into_s3(model, fileName,\
-            \ ak, sk)\n\n    # Output accuracy\n    accuracy_score_metric = accuracy_score(y_test,\
+            \ = f'iris-model_{date}'\n    # Upload Model into S3\n    ## Get creds\
+            \ from k8s secrets\n    ak = os.environ[\"ak\"]\n    sk = os.environ[\"\
+            sk\"]\n    bn = os.environ[\"bn\"]\n    load_model_into_s3(model, fileName,\
+            \ ak, bn, sk)\n\n    # Output accuracy\n    accuracy_score_metric = accuracy_score(y_test,\
             \ y_pred)\n\n    metrics = {\n        \"metrics\": [\n            {\n\
             \                \"name\": \"model_accuracy\",\n                \"numberValue\"\
             : float(accuracy_score_metric),\n                \"format\": \"PERCENTAGE\"\
@@ -186,6 +190,11 @@ spec:
               secretKeyRef:
                 key: AWS_SECRET_ACCESS_KEY
                 name: iris-model
+          - name: bn
+            valueFrom:
+              secretKeyRef:
+                key: BUCKET_NAME
+                name: iris-model
           image: image-registry.openshift-image-registry.svc:5000/mlops-demo-pipelines/iris-training
         stepTemplate:
           volumeMounts:
@@ -205,6 +214,6 @@ spec:
             pipelines.kubeflow.org/component_spec_digest: '{"name": "Train model",
               "outputs": [{"name": "mlpipeline_ui_metadata", "type": "UI_metadata"},
               {"name": "mlpipeline_metrics", "type": "Metrics"}], "version": "Train
-              model@sha256=6e222345f75e9d0866dcdf28157ab85010678b7d0cf9a4fed2978d71586bdd0d"}'
+              model@sha256=8011ab3c340b5a90477e7bf56b224c88ab6b28af9880e6a328a2e6bc997dc779"}'
       runAfter:
       - upload-iris-data
