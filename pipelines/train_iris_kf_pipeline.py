@@ -77,15 +77,17 @@ def train_model() -> (
         [("mlpipeline_ui_metadata", "UI_metadata"), ("mlpipeline_metrics", "Metrics")],
     )
 ):
+    import pickle
+    import boto3
+    import json
+    import os
     import numpy as np
     from minio import Minio
     from sklearn.ensemble import RandomForestClassifier
-    import pickle
-    from sklearn.metrics import accuracy_score#, confusion_matrix, classification_report
-    import json
-    import os
+    from sklearn.metrics import accuracy_score
 
-    print(os.environ["test123"])
+
+    aws_access_key = os.environ["ak"])
 
     # HELPER FUNCTIONS
     def load_minio():
@@ -99,12 +101,22 @@ def train_model() -> (
 
         return minio_client, minio_bucket
 
-    def load_model_into_s3(filename, model_pkle):
-        # Ensure container env has boto3
-        # import boto3
-        print("In Progress")
+    def load_model_into_s3(fileName, ak, sk, bn, model_pkle):
+        # Uses the creds in ~/.aws/credentials
+        access_key = ak
+        secret_key = sk
+        service_point = 'http://s3.openshift-storage.svc.cluster.local'
+        bucketName = bn
+        s3client = boto3.client('s3','us-east-1', endpoint_url=service_point,
+                            aws_access_key_id = access_key,
+                            aws_secret_access_key = secret_key,
+                                use_ssl = True if 'https' in service_point else False,
+                            verify = False)
+        
+        
+        s3client.upload_file(fileName, bucketName, fileName)
 
-    #
+
 
     # Create Model and Train
     minio_client, minio_bucket = load_minio()
@@ -175,7 +187,7 @@ def iris_model_training():
     step1 = component_upload_iris_data()
     step2 = component_train_model()
     step2.add_env_variable(V1EnvVar(
-                name="test123",
+                name="ak",
                 value_from=k8s_client.V1EnvVarSource(secret_key_ref=k8s_client.V1SecretKeySelector(
                     name="iris-model",
                     key="AWS_ACCESS_KEY_ID"
