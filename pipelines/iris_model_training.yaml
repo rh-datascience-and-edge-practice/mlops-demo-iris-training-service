@@ -124,107 +124,68 @@ spec:
             program_path=$(mktemp)
             printf "%s" "$0" > "$program_path"
             python3 -u "$program_path" "$@"
-          - |
-            def train_model():
-                import numpy as np
-                from minio import Minio
-                from sklearn.ensemble import RandomForestClassifier
-                import pickle
-                from sklearn.metrics import accuracy_score#, confusion_matrix, classification_report
-                import json
-
-                # HELPER FUNCTIONS
-                def load_minio():
-                    minio_client = Minio(
-                        "minio-service.mlops-demo-datascience.svc.cluster.local:9000",
-                        access_key="minio",
-                        secret_key="minio123",
-                        secure=False,
-                    )
-                    minio_bucket = "mlpipeline"
-
-                    return minio_client, minio_bucket
-
-                def load_model_into_s3(filename, model_pkle):
-                    # Ensure container env has boto3
-                    # import boto3
-                    print("In Progress")
-
-                #
-
-                # Create Model and Train
-                minio_client, minio_bucket = load_minio()
-                minio_client.fget_object(minio_bucket, "x_train", "/tmp/x_train.npy")
-                x_train = np.load("/tmp/x_train.npy")
-
-                minio_client.fget_object(minio_bucket, "y_train", "/tmp/y_train.npy")
-                y_train = np.load("/tmp/y_train.npy")
-
-                minio_client.fget_object(minio_bucket, "x_test", "/tmp/x_test.npy")
-                x_test = np.load("/tmp/x_test.npy")
-
-                minio_client.fget_object(minio_bucket, "y_test", "/tmp/y_test.npy")
-                y_test = np.load("/tmp/y_test.npy")
-
-                # Create a Gaussian Classifier
-                model = RandomForestClassifier(n_estimators=100)
-
-                # Train the model using the training sets y_pred=clf.predict(X_test)
-                model.fit(x_train, y_train)
-                y_pred = model.predict(x_test)
-
-                filename = "/tmp/iris-model.pkl"
-                pickle.dump(model, open(filename, "wb"))
-
-                # Upload model to minio
-                minio_client.fput_object(minio_bucket, "iris-model", filename)
-
-                # Upload Model into S3
-                load_model_into_s3("iris-model", filename)
-                # Output metrics
-
-                # confusion_matrix_metric = confusion_matrix(y_test, y_pred)
-                accuracy_score_metric = accuracy_score(y_test, y_pred)
-                # classification_report_metric = classification_report(y_test,y_pred)
-
-                metrics = {
-                    "metrics": [
-                        {
-                            "name": "model_accuracy",
-                            "numberValue": float(accuracy_score_metric),
-                            "format": "PERCENTAGE",
-                        }
-                    ]
-                }
-                metadata = {"metadata": [{"placeholder_key": "placeholder_value"}]}
-
-                from collections import namedtuple
-
-                output = namedtuple("output", ["mlpipeline_ui_metadata", "mlpipeline_metrics"])
-                return output(json.dumps(metadata), json.dumps(metrics))
-
-            import argparse
-            _parser = argparse.ArgumentParser(prog='Train model', description='')
-            _parser.add_argument("----output-paths", dest="_output_paths", type=str, nargs=2)
-            _parsed_args = vars(_parser.parse_args())
-            _output_files = _parsed_args.pop("_output_paths", [])
-
-            _outputs = train_model(**_parsed_args)
-
-            _output_serializers = [
-                str,
-                str,
-
-            ]
-
-            import os
-            for idx, output_file in enumerate(_output_files):
-                try:
-                    os.makedirs(os.path.dirname(output_file))
-                except OSError:
-                    pass
-                with open(output_file, 'w') as f:
-                    f.write(_output_serializers[idx](_outputs[idx]))
+          - "def train_model():\n    import pickle\n    import boto3\n    import json\n\
+            \    import os\n    import numpy as np\n    from minio import Minio\n\
+            \    from datetime import date\n    from sklearn.ensemble import RandomForestClassifier\n\
+            \    from sklearn.metrics import accuracy_score\n\n    # HELPER FUNCTIONS\n\
+            \    def load_minio():\n        minio_client = Minio(\n            \"\
+            minio-service.mlops-demo-datascience.svc.cluster.local:9000\",\n     \
+            \       access_key=\"minio\",\n            secret_key=\"minio123\",\n\
+            \            secure=False,\n        )\n        minio_bucket = \"mlpipeline\"\
+            \n\n        return minio_client, minio_bucket\n\n    def load_model_into_s3(model,\
+            \ fileName, ak, sk):\n        bucket_name = \"obc-mlops-demo-datascience-iris-model\"\
+            \n        service_point = 'http://s3.openshift-storage.svc.cluster.local'\n\
+            \        s3client = boto3.client('s3',\n                            'us-east-1',\
+            \ \n                            endpoint_url=service_point,\n        \
+            \                    aws_access_key_id = ak,\n                       \
+            \     aws_secret_access_key = sk,\n                            use_ssl\
+            \ = True if 'https' in service_point else False,\n                   \
+            \         verify = False )\n\n        #s3client.upload_file(fileName,\
+            \ bucket_name, fileName)\n        s3client.put_object(body=b'bytes'|model,\
+            \ bucket=bucket_name, key=fileName)\n\n    # Create Model and Train\n\
+            \    minio_client, minio_bucket = load_minio()\n    minio_client.fget_object(minio_bucket,\
+            \ \"x_train\", \"/tmp/x_train.npy\")\n    x_train = np.load(\"/tmp/x_train.npy\"\
+            )\n\n    minio_client.fget_object(minio_bucket, \"y_train\", \"/tmp/y_train.npy\"\
+            )\n    y_train = np.load(\"/tmp/y_train.npy\")\n\n    minio_client.fget_object(minio_bucket,\
+            \ \"x_test\", \"/tmp/x_test.npy\")\n    x_test = np.load(\"/tmp/x_test.npy\"\
+            )\n\n    minio_client.fget_object(minio_bucket, \"y_test\", \"/tmp/y_test.npy\"\
+            )\n    y_test = np.load(\"/tmp/y_test.npy\")\n\n    # Create a Gaussian\
+            \ Classifier\n    model = RandomForestClassifier(n_estimators=100)\n\n\
+            \    # Train the model using the training sets y_pred=clf.predict(X_test)\n\
+            \    model.fit(x_train, y_train)\n    y_pred = model.predict(x_test)\n\
+            \n    # save the model to disk\n    date = date.today()\n    fileName\
+            \ = f'iris-model_{date}'\n    #print(\"dumping model to local dir\")\n\
+            \    #pickle.dump(model, open(fileName, 'wb')) \n    # Upload Model into\
+            \ S3\n    ## Get creds from k8s secrets\n    ak = os.environ[\"ak\"]\n\
+            \    sk = os.environ[\"sk\"]\n    load_model_into_s3(model, fileName,\
+            \ ak, sk)\n\n    # Output accuracy\n    accuracy_score_metric = accuracy_score(y_test,\
+            \ y_pred)\n\n    metrics = {\n        \"metrics\": [\n            {\n\
+            \                \"name\": \"model_accuracy\",\n                \"numberValue\"\
+            : float(accuracy_score_metric),\n                \"format\": \"PERCENTAGE\"\
+            ,\n            }\n        ]\n    }\n    metadata = {\"metadata\": [{\"\
+            placeholder_key\": \"placeholder_value\"}]}\n\n    from collections import\
+            \ namedtuple\n\n    output = namedtuple(\"output\", [\"mlpipeline_ui_metadata\"\
+            , \"mlpipeline_metrics\"])\n    return output(json.dumps(metadata), json.dumps(metrics))\n\
+            \nimport argparse\n_parser = argparse.ArgumentParser(prog='Train model',\
+            \ description='')\n_parser.add_argument(\"----output-paths\", dest=\"\
+            _output_paths\", type=str, nargs=2)\n_parsed_args = vars(_parser.parse_args())\n\
+            _output_files = _parsed_args.pop(\"_output_paths\", [])\n\n_outputs =\
+            \ train_model(**_parsed_args)\n\n_output_serializers = [\n    str,\n \
+            \   str,\n\n]\n\nimport os\nfor idx, output_file in enumerate(_output_files):\n\
+            \    try:\n        os.makedirs(os.path.dirname(output_file))\n    except\
+            \ OSError:\n        pass\n    with open(output_file, 'w') as f:\n    \
+            \    f.write(_output_serializers[idx](_outputs[idx]))\n"
+          env:
+          - name: ak
+            valueFrom:
+              secretKeyRef:
+                key: AWS_ACCESS_KEY_ID
+                name: iris-model
+          - name: sk
+            valueFrom:
+              secretKeyRef:
+                key: AWS_SECRET_ACCESS_KEY
+                name: iris-model
           image: image-registry.openshift-image-registry.svc:5000/mlops-demo-pipelines/iris-training
         stepTemplate:
           volumeMounts:
@@ -244,6 +205,6 @@ spec:
             pipelines.kubeflow.org/component_spec_digest: '{"name": "Train model",
               "outputs": [{"name": "mlpipeline_ui_metadata", "type": "UI_metadata"},
               {"name": "mlpipeline_metrics", "type": "Metrics"}], "version": "Train
-              model@sha256=62402c105868742668a8e72df08e79033fb6df6f999debe21701be337b9fca8c"}'
+              model@sha256=6e222345f75e9d0866dcdf28157ab85010678b7d0cf9a4fed2978d71586bdd0d"}'
       runAfter:
       - upload-iris-data

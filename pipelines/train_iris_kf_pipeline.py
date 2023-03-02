@@ -83,11 +83,10 @@ def train_model() -> (
     import os
     import numpy as np
     from minio import Minio
+    from datetime import date
     from sklearn.ensemble import RandomForestClassifier
     from sklearn.metrics import accuracy_score
 
-
-    aws_access_key = os.environ["ak"])
 
     # HELPER FUNCTIONS
     def load_minio():
@@ -101,21 +100,19 @@ def train_model() -> (
 
         return minio_client, minio_bucket
 
-    def load_model_into_s3(fileName, ak, sk, bn, model_pkle):
-        # Uses the creds in ~/.aws/credentials
-        access_key = ak
-        secret_key = sk
+    def load_model_into_s3(model, fileName, ak, sk):
+        bucket_name = "obc-mlops-demo-datascience-iris-model"
         service_point = 'http://s3.openshift-storage.svc.cluster.local'
-        bucketName = bn
-        s3client = boto3.client('s3','us-east-1', endpoint_url=service_point,
-                            aws_access_key_id = access_key,
-                            aws_secret_access_key = secret_key,
-                                use_ssl = True if 'https' in service_point else False,
-                            verify = False)
+        s3client = boto3.client('s3',
+                            'us-east-1', 
+                            endpoint_url=service_point,
+                            aws_access_key_id = ak,
+                            aws_secret_access_key = sk,
+                            use_ssl = True if 'https' in service_point else False,
+                            verify = False )
         
-        
-        s3client.upload_file(fileName, bucketName, fileName)
-
+        #s3client.upload_file(fileName, bucket_name, fileName)
+        s3client.put_object(body=b'bytes'|model, bucket=bucket_name, key=fileName)
 
 
     # Create Model and Train
@@ -139,19 +136,21 @@ def train_model() -> (
     model.fit(x_train, y_train)
     y_pred = model.predict(x_test)
 
-    filename = "/tmp/iris-model.pkl"
-    pickle.dump(model, open(filename, "wb"))
 
-    # Upload model to minio
-    minio_client.fput_object(minio_bucket, "iris-model", filename)
-
+    # save the model to disk
+    date = date.today()
+    fileName = f'iris-model_{date}'
+    #print("dumping model to local dir")
+    #pickle.dump(model, open(fileName, 'wb')) 
     # Upload Model into S3
-    load_model_into_s3("iris-model", filename)
-    # Output metrics
-
-    # confusion_matrix_metric = confusion_matrix(y_test, y_pred)
+    ## Get creds from k8s secrets
+    ak = os.environ["ak"]
+    sk = os.environ["sk"]
+    load_model_into_s3(model, fileName, ak, sk)
+    
+    
+    # Output accuracy
     accuracy_score_metric = accuracy_score(y_test, y_pred)
-    # classification_report_metric = classification_report(y_test,y_pred)
 
     metrics = {
         "metrics": [
@@ -191,6 +190,15 @@ def iris_model_training():
                 value_from=k8s_client.V1EnvVarSource(secret_key_ref=k8s_client.V1SecretKeySelector(
                     name="iris-model",
                     key="AWS_ACCESS_KEY_ID"
+                    )
+                )
+            )
+    )
+    step2.add_env_variable(V1EnvVar(
+                name="sk",
+                value_from=k8s_client.V1EnvVarSource(secret_key_ref=k8s_client.V1SecretKeySelector(
+                    name="iris-model",
+                    key="AWS_SECRET_ACCESS_KEY"
                     )
                 )
             )
