@@ -1,7 +1,8 @@
 # %%
 from kfp import dsl
 import kfp.components as components
-
+from kubernetes.client.models import V1EnvVar
+from kubernetes import client as k8s_client
 
 # %%
 def upload_iris_data():
@@ -82,6 +83,9 @@ def train_model() -> (
     import pickle
     from sklearn.metrics import accuracy_score#, confusion_matrix, classification_report
     import json
+    import os
+
+    print(os.environ["test123"])
 
     # HELPER FUNCTIONS
     def load_minio():
@@ -170,6 +174,15 @@ component_train_model = components.create_component_from_func(
 def iris_model_training():
     step1 = component_upload_iris_data()
     step2 = component_train_model()
+    step2.add_env_variable(V1EnvVar(
+                name="test123",
+                value_from=k8s_client.V1EnvVarSource(secret_key_ref=k8s_client.V1SecretKeySelector(
+                    name="iris-model",
+                    key="AWS_ACCESS_KEY_ID"
+                    )
+                )
+            )
+    )
     step2.after(step1)
 
 
