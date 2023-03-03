@@ -177,14 +177,60 @@ def train_model() -> (
     output = namedtuple("output", ["mlpipeline_ui_metadata", "mlpipeline_metrics"])
     return output(json.dumps(metadata), json.dumps(metrics))
 
+def make_prediction():
+    import boto3
+    import joblib
+    import os
+
+    def get_s3_client(ak,sk):
+        service_point = "http://s3.openshift-storage.svc.cluster.local"
+        s3client = boto3.client(
+            "s3",
+            "us-east-1",
+            endpoint_url=service_point,
+            aws_access_key_id=ak,
+            aws_secret_access_key=sk,
+            use_ssl=True if "https" in service_point else False,
+            verify=False,
+        )
+        return s3client
+
+    ak = os.environ["ak"]
+    sk = os.environ["sk"]
+    bn = os.environ["bn"]
+    s3client = get_s3_client(ak,sk)
+
+    objects = s3client.list_objects_v2(Bucket=bn)
+
+
+    allFiles = []
+    for obj in objects['Contents']:
+        #print(obj['Key'])
+        allFiles.append(obj['Key'])
+
+    print(allFiles)
+    allFiles.sort()
+    fileName = allFiles[-1]
+    print(fileName)
+    s3client.download_file(
+        Bucket=bn, Key=fileName, Filename="./model"
+    )
+    obj = open("./model", "rb")
+    model = joblib.load(obj)
+    print(model.predict([[5,3,1.6,0.2]]))
+
 
 component_upload_iris_data = components.create_component_from_func(
     upload_iris_data,
-    base_image="image-registry.openshift-image-registry.svc:5000/mlops-demo-pipelines/iris-training",
+    base_image = "image-registry.openshift-image-registry.svc:5000/mlops-demo-pipelines/iris-training",
 )
 component_train_model = components.create_component_from_func(
     train_model,
-    base_image="image-registry.openshift-image-registry.svc:5000/mlops-demo-pipelines/iris-training",
+    base_image = "image-registry.openshift-image-registry.svc:5000/mlops-demo-pipelines/iris-training",
+)
+component_make_prediction = components.create_component_from_func(
+    make_prediction,
+    base_image = "image-registry.openshift-image-registry.svc:5000/mlops-demo-pipelines/iris-training",
 )
 
 
@@ -192,6 +238,7 @@ component_train_model = components.create_component_from_func(
 def iris_model_training():
     step1 = component_upload_iris_data()
     step2 = component_train_model()
+    step3 = component_make_prediction()
     step2.add_env_variable(
         V1EnvVar(
             name="ak",
@@ -216,13 +263,46 @@ def iris_model_training():
         V1EnvVar(
             name="bn",
             value_from=k8s_client.V1EnvVarSource(
-                secret_key_ref=k8s_client.V1SecretKeySelector(
+                config_map_key_ref=k8s_client.V1ConfigMapKeySelector(
                     name="iris-model", key="BUCKET_NAME"
                 )
             ),
         )
     )
+
+    step3.add_env_variable(
+        V1EnvVar(
+            name="ak",
+            value_from=k8s_client.V1EnvVarSource(
+                secret_key_ref=k8s_client.V1SecretKeySelector(
+                    name="iris-model", key="AWS_ACCESS_KEY_ID"
+                )
+            ),
+        )
+    )
+    step3.add_env_variable(
+        V1EnvVar(
+            name="sk",
+            value_from=k8s_client.V1EnvVarSource(
+                secret_key_ref=k8s_client.V1SecretKeySelector(
+                    name="iris-model", key="AWS_SECRET_ACCESS_KEY"
+                )
+            ),
+        )
+    )
+    step3.add_env_variable(
+        V1EnvVar(
+            name="bn",
+            value_from=k8s_client.V1EnvVarSource(
+                config_map_key_ref=k8s_client.V1ConfigMapKeySelector(
+                    name="iris-model", key="BUCKET_NAME"
+                )
+            ),
+        )
+    )
+
     step2.after(step1)
+    step3.after(step2)
 
 
 # %%
