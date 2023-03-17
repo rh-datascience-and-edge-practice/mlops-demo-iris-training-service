@@ -74,8 +74,10 @@ def data_prep(
     save_pickle(y_train_file, y_train)
     save_pickle(y_test_file, y_test)
 
+
 def validate_data():
     pass
+
 
 def train_model(
     X_train_file: kfp.components.InputPath(),
