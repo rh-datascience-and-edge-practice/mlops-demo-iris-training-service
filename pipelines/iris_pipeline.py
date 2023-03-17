@@ -113,7 +113,9 @@ def evaluate_model(
     X_test_file: kfp.components.InputPath(),
     y_test_file: kfp.components.InputPath(),
     model_file: kfp.components.InputPath(),
+    mlpipeline_metrics_file: kfp.components.OutputPath("Metrics"),
 ):
+    import json
     import pickle
 
     from sklearn.metrics import accuracy_score
@@ -123,7 +125,7 @@ def evaluate_model(
             target_object = pickle.load(f)
 
         return target_object
-
+   
     X_test = load_pickle(X_test_file)
     y_test = load_pickle(y_test_file)
     model = load_pickle(model_file)
@@ -133,6 +135,18 @@ def evaluate_model(
     accuracy_score_metric = accuracy_score(y_test, y_pred)
     print(f"Accuracy: {accuracy_score_metric}")
 
+    metrics = {
+        "metrics": [
+            {
+                "name": "accuracy-score",  # The name of the metric. Visualized as the column name in the runs table.
+                "numberValue": accuracy_score_metric,  # The value of the metric. Must be a numeric value.
+                "format": "PERCENTAGE",  # The optional format of the metric. Supported values are "RAW" (displayed in raw format) and "PERCENTAGE" (displayed in percentage format).
+            },
+        ]
+    }
+
+    with open(mlpipeline_metrics_file, "w") as f:
+        json.dump(metrics, f)
 
 def upload_model():
     pass
