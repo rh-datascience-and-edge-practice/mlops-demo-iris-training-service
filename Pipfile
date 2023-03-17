@@ -6,11 +6,8 @@ name = "pypi"
 [packages]
 pandas = "*"
 scikit-learn = "*"
-great_expectations = "*"
 kfp = "*"
-kfp-tekton = "*"
-minio = "*"
-numpy = "*"
+kfp-tekton = "~=1.5.0"
 boto3 = "*"
 
 [dev-packages]
