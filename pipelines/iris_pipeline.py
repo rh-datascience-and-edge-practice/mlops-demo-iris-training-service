@@ -125,7 +125,7 @@ def evaluate_model(
             target_object = pickle.load(f)
 
         return target_object
-   
+
     X_test = load_pickle(X_test_file)
     y_test = load_pickle(y_test_file)
     model = load_pickle(model_file)
@@ -138,15 +138,16 @@ def evaluate_model(
     metrics = {
         "metrics": [
             {
-                "name": "accuracy-score",  # The name of the metric. Visualized as the column name in the runs table.
-                "numberValue": accuracy_score_metric,  # The value of the metric. Must be a numeric value.
-                "format": "PERCENTAGE",  # The optional format of the metric. Supported values are "RAW" (displayed in raw format) and "PERCENTAGE" (displayed in percentage format).
+                "name": "accuracy-score",
+                "numberValue": accuracy_score_metric,
+                "format": "PERCENTAGE",
             },
         ]
     }
 
     with open(mlpipeline_metrics_file, "w") as f:
         json.dump(metrics, f)
+
 
 def upload_model():
     pass
