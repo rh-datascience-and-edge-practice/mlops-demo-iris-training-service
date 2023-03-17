@@ -74,6 +74,8 @@ def data_prep(
     save_pickle(y_train_file, y_train)
     save_pickle(y_test_file, y_test)
 
+def validate_data():
+    pass
 
 def train_model(
     X_train_file: kfp.components.InputPath(),
@@ -149,7 +151,7 @@ def evaluate_model(
         json.dump(metrics, f)
 
 
-def upload_model():
+def upload_model(model_file: kfp.components.InputPath()):
     pass
 
 
@@ -159,8 +161,21 @@ data_prep_op = kfp.components.create_component_from_func(
     packages_to_install=["pandas", "scikit-learn"],
 )
 
+validate_data_op = kfp.components.create_component_from_func(
+    validate_data,
+    base_image="image-registry.openshift-image-registry.svc:5000/openshift/python:latest",
+    packages_to_install=["pandas"],
+)
+
+
 train_model_op = kfp.components.create_component_from_func(
     train_model,
+    base_image="image-registry.openshift-image-registry.svc:5000/openshift/python:latest",
+    packages_to_install=["pandas", "scikit-learn"],
+)
+
+validate_model_op = kfp.components.create_component_from_func(
+    validate_model,
     base_image="image-registry.openshift-image-registry.svc:5000/openshift/python:latest",
     packages_to_install=["pandas", "scikit-learn"],
 )
@@ -171,11 +186,17 @@ evaluate_model_op = kfp.components.create_component_from_func(
     packages_to_install=["pandas", "scikit-learn"],
 )
 
+upload_model_op = kfp.components.create_component_from_func(
+    upload_model,
+    base_image="image-registry.openshift-image-registry.svc:5000/openshift/python:latest",
+    packages_to_install=["boto3"],
+)
+
 
 @kfp.dsl.pipeline(
     name="Iris Pipeline",
 )
-def iris_pipeline():
+def iris_pipeline(model_obc: str = "iris-model"):
     data_prep_task = data_prep_op()
     train_model_task = train_model_op(
         data_prep_task.outputs["X_train"],
@@ -185,6 +206,48 @@ def iris_pipeline():
         data_prep_task.outputs["X_test"],
         data_prep_task.outputs["y_test"],
         train_model_task.output,
+    )
+    upload_model_task = upload_model_op(train_model_task.output)
+
+    upload_model_task.add_env_variable(
+        kubernetes.client.V1EnvVar(
+            name="ACCESS_KEY",
+            value_from=kubernetes.client.V1EnvVarSource(
+                secret_key_ref=kubernetes.client.V1SecretKeySelector(
+                    name=model_obc, key="AWS_ACCESS_KEY_ID"
+                )
+            ),
+        )
+    )
+    upload_model_task.add_env_variable(
+        kubernetes.client.V1EnvVar(
+            name="SECRET_KEY",
+            value_from=kubernetes.client.V1EnvVarSource(
+                secret_key_ref=kubernetes.client.V1SecretKeySelector(
+                    name=model_obc, key="AWS_SECRET_ACCESS_KEY"
+                )
+            ),
+        )
+    )
+    upload_model_task.add_env_variable(
+        kubernetes.client.V1EnvVar(
+            name="BUCKET_NAME",
+            value_from=kubernetes.client.V1EnvVarSource(
+                config_map_key_ref=kubernetes.client.V1ConfigMapKeySelector(
+                    name=model_obc, key="BUCKET_NAME"
+                )
+            ),
+        )
+    )
+    upload_model_task.add_env_variable(
+        kubernetes.client.V1EnvVar(
+            name="BUCKET_HOST",
+            value_from=kubernetes.client.V1EnvVarSource(
+                config_map_key_ref=kubernetes.client.V1ConfigMapKeySelector(
+                    name=model_obc, key="BUCKET_HOST"
+                )
+            ),
+        )
     )
 
 
