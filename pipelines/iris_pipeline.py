@@ -114,8 +114,23 @@ def train_model(
     save_pickle(model_file, model)
 
 
-def validate_model():
-    pass
+def validate_model(model_file: kfp.components.InputPath()):
+    import pickle
+    
+    def load_pickle(object_file):
+        with open(object_file, "rb") as f:
+            target_object = pickle.load(f)
+
+        return target_object
+
+    model = load_pickle(model_file)
+
+    input_values = [[5, 3, 1.6, 0.2]]
+
+    print(f"Performing test prediction on {input_values}")
+    result = model.predict(input_values)
+
+    print(f"Response: {result}")
 
 
 def evaluate_model(
@@ -159,7 +174,34 @@ def evaluate_model(
 
 
 def upload_model(model_file: kfp.components.InputPath()):
-    pass
+    import os
+
+    import boto3
+
+    access_key = os.environ["ACCESS_KEY"]
+    secret_key = os.environ["SECRET_KEY"]
+    bucket_name = os.environ["BUCKET_NAME"]
+    bucket_host = os.environ["BUCKET_HOST"]
+    bucket_port = os.environ["BUCKET_PORT"]
+
+    if "443" in bucket_port:
+        service_protocol = "https"
+    else:
+        service_protocol = "http"
+
+    service_endpoint = f"{service_protocol}://{bucket_host}:{bucket_port}"
+
+    s3client = boto3.client(
+        "s3",
+        "us-east-1",
+        endpoint_url=service_endpoint,
+        aws_access_key_id=access_key,
+        aws_secret_access_key=secret_key,
+        use_ssl=True if "https" in service_endpoint else False,
+        verify=False,
+    )
+
+    s3client.upload_file(model_file, bucket_name, "model")
 
 
 data_prep_op = kfp.components.create_component_from_func(
@@ -181,14 +223,14 @@ train_model_op = kfp.components.create_component_from_func(
     packages_to_install=["pandas", "scikit-learn"],
 )
 
-validate_model_op = kfp.components.create_component_from_func(
-    validate_model,
+evaluate_model_op = kfp.components.create_component_from_func(
+    evaluate_model,
     base_image="image-registry.openshift-image-registry.svc:5000/openshift/python:latest",
     packages_to_install=["pandas", "scikit-learn"],
 )
 
-evaluate_model_op = kfp.components.create_component_from_func(
-    evaluate_model,
+validate_model_op = kfp.components.create_component_from_func(
+    validate_model,
     base_image="image-registry.openshift-image-registry.svc:5000/openshift/python:latest",
     packages_to_install=["pandas", "scikit-learn"],
 )
@@ -205,17 +247,23 @@ upload_model_op = kfp.components.create_component_from_func(
 )
 def iris_pipeline(model_obc: str = "iris-model"):
     data_prep_task = data_prep_op()
+
     train_model_task = train_model_op(
         data_prep_task.outputs["X_train"],
         data_prep_task.outputs["y_train"],
     )
+
     evaluate_model_task = evaluate_model_op(
         data_prep_task.outputs["X_test"],
         data_prep_task.outputs["y_test"],
         train_model_task.output,
     )
-    upload_model_task = upload_model_op(train_model_task.output)
 
+    validate_model_task = validate_model_op(train_model_task.output)
+
+    upload_model_task = upload_model_op(train_model_task.output)
+    upload_model_task.after(evaluate_model_task)
+    upload_model_task.after(validate_model_task)
     upload_model_task.add_env_variable(
         kubernetes.client.V1EnvVar(
             name="ACCESS_KEY",
@@ -252,6 +300,16 @@ def iris_pipeline(model_obc: str = "iris-model"):
             value_from=kubernetes.client.V1EnvVarSource(
                 config_map_key_ref=kubernetes.client.V1ConfigMapKeySelector(
                     name=model_obc, key="BUCKET_HOST"
+                )
+            ),
+        )
+    )
+    upload_model_task.add_env_variable(
+        kubernetes.client.V1EnvVar(
+            name="BUCKET_PORT",
+            value_from=kubernetes.client.V1EnvVarSource(
+                config_map_key_ref=kubernetes.client.V1ConfigMapKeySelector(
+                    name=model_obc, key="BUCKET_PORT"
                 )
             ),
         )
