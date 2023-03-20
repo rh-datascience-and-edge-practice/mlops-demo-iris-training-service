@@ -100,11 +100,16 @@ def train_model(
         with open(object_file, "wb") as f:
             pickle.dump(target_object, f)
 
+    def train_iris(X_train: pd.DataFrame, y_train: pd.DataFrame):
+        model = RandomForestClassifier(n_estimators=100)
+        model.fit(X_train, y_train)
+
+        return model
+
     X_train = load_pickle(X_train_file)
     y_train = load_pickle(y_train_file)
 
-    model = RandomForestClassifier(n_estimators=100)
-    model.fit(X_train, y_train)
+    model = train_iris(X_train, y_train)
 
     save_pickle(model_file, model)
 
