@@ -201,7 +201,7 @@ def upload_model(model_file: kfp.components.InputPath()):
         verify=False,
     )
 
-    s3client.upload_file(model_file, bucket_name, "model")
+    s3client.upload_file(model_file, bucket_name, "model.pkl")
 
 
 data_prep_op = kfp.components.create_component_from_func(
