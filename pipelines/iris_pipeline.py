@@ -58,7 +58,9 @@ def data_prep(
         y = dataset["species"]
 
         # Split dataset into training set and test set
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size)
+        X_train, X_test, y_train, y_test = train_test_split(
+            X, y, test_size=test_size, random_state=11
+        )
 
         return X_train, X_test, y_train, y_test
 
@@ -116,7 +118,7 @@ def train_model(
 
 def validate_model(model_file: kfp.components.InputPath()):
     import pickle
-    
+
     def load_pickle(object_file):
         with open(object_file, "rb") as f:
             target_object = pickle.load(f)
