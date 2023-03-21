@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "32606c27f4129c94b0bf777b389f9df4c9e6939c30e701eda5317f6e02fa4210"
+            "sha256": "b6ad8fb3019061a106dfdbdc7fd34d885c4af77e70420ed82492a33fa66870c0"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -314,11 +314,11 @@
         },
         "googleapis-common-protos": {
             "hashes": [
-                "sha256:c727251ec025947d545184ba17e3578840fc3a24a0516a020479edab660457df",
-                "sha256:ca3befcd4580dab6ad49356b46bf165bb68ff4b32389f028f1abd7c10ab9519a"
+                "sha256:4168fcb568a826a52f23510412da405abd93f4d23ba544bb68d943b14ba3cb44",
+                "sha256:b287dc48449d1d41af0c69f4ea26242b5ae4c3d7249a38b0984c86a4caffff1f"
             ],
             "markers": "python_version >= '3.7'",
-            "version": "==1.58.0"
+            "version": "==1.59.0"
         },
         "httplib2": {
             "hashes": [
@@ -394,6 +394,14 @@
             ],
             "markers": "python_version >= '3.6'",
             "version": "==19.15.0"
+        },
+        "loguru": {
+            "hashes": [
+                "sha256:066bd06758d0a513e9836fd9c6b5a75bfb3fd36841f4b996bc60b547a309d41c",
+                "sha256:4e2414d534a2ab57573365b3e6d0234dfb1d84b68b7f3b948e6fb743860a77c3"
+            ],
+            "index": "pypi",
+            "version": "==0.6.0"
         },
         "numpy": {
             "hashes": [

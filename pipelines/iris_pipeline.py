@@ -11,6 +11,8 @@ import kfp_tekton
 
 import kubernetes
 
+from loguru import logger
+
 import pandas as pd
 
 load_dotenv(override=True)
@@ -318,7 +320,7 @@ def iris_pipeline(model_obc: str = "iris-model"):
 
 
 if __name__ == "__main__":
-    print(f"Connecting to kfp: {kubeflow_endpoint}")
+    logger.info(f"Connecting to kfp: {kubeflow_endpoint}")
     client = kfp_tekton.TektonClient(
         host=urllib.parse.urljoin(kubeflow_endpoint, "/pipeline"),
         existing_token=bearer_token,
@@ -326,4 +328,4 @@ if __name__ == "__main__":
     result = client.create_run_from_pipeline_func(
         iris_pipeline, arguments={}, experiment_name="iris"
     )
-    print(f"Starting pipeline run with run_id: {result.run_id}")
+    logger.info(f"Starting pipeline run with run_id: {result.run_id}")
