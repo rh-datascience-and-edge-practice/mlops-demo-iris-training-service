@@ -216,7 +216,6 @@ validate_data_op = kfp.components.create_component_from_func(
     packages_to_install=["pandas"],
 )
 
-
 train_model_op = kfp.components.create_component_from_func(
     train_model,
     base_image="image-registry.openshift-image-registry.svc:5000/openshift/python:latest",
@@ -321,6 +320,7 @@ if __name__ == "__main__":
         host=urllib.parse.urljoin(kubeflow_endpoint, "/pipeline"),
         existing_token=bearer_token,
     )
-    client.create_run_from_pipeline_func(
+    result = client.create_run_from_pipeline_func(
         iris_pipeline, arguments={}, experiment_name="iris"
     )
+    print(f"Starting pipeline run with run_id: {result.run_id}")
