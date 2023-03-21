@@ -33,7 +33,6 @@ def data_prep(
     import pandas as pd
 
     from sklearn import datasets
-    from sklearn.ensemble import RandomForestClassifier
     from sklearn.model_selection import train_test_split
 
     def get_iris_data() -> pd.DataFrame:
@@ -89,8 +88,6 @@ def train_model(
     model_file: kfp.components.OutputPath(),
 ):
     import pickle
-
-    import pandas as pd
 
     from sklearn.ensemble import RandomForestClassifier
 
@@ -210,38 +207,32 @@ def upload_model(model_file: kfp.components.InputPath()):
 
 data_prep_op = kfp.components.create_component_from_func(
     data_prep,
-    base_image="image-registry.openshift-image-registry.svc:5000/openshift/python:latest",
-    packages_to_install=["pandas", "scikit-learn"],
+    base_image="image-registry.openshift-image-registry.svc:5000/mlops-demo-pipelines/iris-training:latest",
 )
 
 validate_data_op = kfp.components.create_component_from_func(
     validate_data,
-    base_image="image-registry.openshift-image-registry.svc:5000/openshift/python:latest",
-    packages_to_install=["pandas"],
+    base_image="image-registry.openshift-image-registry.svc:5000/mlops-demo-pipelines/iris-training:latest",
 )
 
 train_model_op = kfp.components.create_component_from_func(
     train_model,
-    base_image="image-registry.openshift-image-registry.svc:5000/openshift/python:latest",
-    packages_to_install=["pandas", "scikit-learn"],
+    base_image="image-registry.openshift-image-registry.svc:5000/mlops-demo-pipelines/iris-training:latest",
 )
 
 evaluate_model_op = kfp.components.create_component_from_func(
     evaluate_model,
-    base_image="image-registry.openshift-image-registry.svc:5000/openshift/python:latest",
-    packages_to_install=["pandas", "scikit-learn"],
+    base_image="image-registry.openshift-image-registry.svc:5000/mlops-demo-pipelines/iris-training:latest",
 )
 
 validate_model_op = kfp.components.create_component_from_func(
     validate_model,
-    base_image="image-registry.openshift-image-registry.svc:5000/openshift/python:latest",
-    packages_to_install=["pandas", "scikit-learn"],
+    base_image="image-registry.openshift-image-registry.svc:5000/mlops-demo-pipelines/iris-training:latest",
 )
 
 upload_model_op = kfp.components.create_component_from_func(
     upload_model,
-    base_image="image-registry.openshift-image-registry.svc:5000/openshift/python:latest",
-    packages_to_install=["boto3"],
+    base_image="image-registry.openshift-image-registry.svc:5000/mlops-demo-pipelines/iris-training:latest",
 )
 
 
