@@ -44,7 +44,6 @@ flake8 .
 
 ### Run the Pipeline
 
-``````
 ```
 python pipelines/iris_pipeline.py
 ```
