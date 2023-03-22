@@ -17,10 +17,6 @@ import pandas as pd
 
 load_dotenv(override=True)
 
-kubeflow_endpoint = os.environ["KUBEFLOW_ENDPOINT"]
-bearer_token = os.environ["BEARER_TOKEN"]
-
-
 def data_prep(
     X_train_file: kfp.components.OutputPath(),
     X_test_file: kfp.components.OutputPath(),
@@ -311,6 +307,9 @@ def iris_pipeline(model_obc: str = "iris-model"):
 
 
 if __name__ == "__main__":
+
+    kubeflow_endpoint = os.environ["KUBEFLOW_ENDPOINT"]
+
     logger.info(f"Connecting to kfp: {kubeflow_endpoint}")
 
     # Check if the script is running in a k8s pod
@@ -321,7 +320,7 @@ if __name__ == "__main__":
         with open(sa_token_path, "r") as f:
             token = f.read().rstrip()
     else:
-        token = bearer_token
+        token = os.environ["BEARER_TOKEN"]
 
     print(token)
 
