@@ -312,9 +312,22 @@ def iris_pipeline(model_obc: str = "iris-model"):
 
 if __name__ == "__main__":
     logger.info(f"Connecting to kfp: {kubeflow_endpoint}")
+
+    # Check if the script is running in a k8s pod
+    # Read the service account token if it is
+    # Get the bearer token from an env var if it is not 
+    sa_token_path = "/run/secrets/kubernetes.io/serviceaccount/token"
+    if os.path.isfile(sa_token_path):
+        with open(sa_token_path, "r") as f:
+            token = f.read().rstrip()
+    else:
+        token = bearer_token
+
+    print(token)
+
     client = kfp_tekton.TektonClient(
         host=urllib.parse.urljoin(kubeflow_endpoint, "/pipeline"),
-        existing_token=bearer_token,
+        existing_token=token,
     )
     result = client.create_run_from_pipeline_func(
         iris_pipeline, arguments={}, experiment_name="iris"
