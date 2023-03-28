@@ -17,10 +17,6 @@ import pandas as pd
 
 load_dotenv(override=True)
 
-kubeflow_endpoint = os.environ["KUBEFLOW_ENDPOINT"]
-bearer_token = os.environ["BEARER_TOKEN"]
-
-
 def data_prep(
     X_train_file: kfp.components.OutputPath(),
     X_test_file: kfp.components.OutputPath(),
@@ -33,7 +29,6 @@ def data_prep(
     import pandas as pd
 
     from sklearn import datasets
-    from sklearn.ensemble import RandomForestClassifier
     from sklearn.model_selection import train_test_split
 
     def get_iris_data() -> pd.DataFrame:
@@ -89,8 +84,6 @@ def train_model(
     model_file: kfp.components.OutputPath(),
 ):
     import pickle
-
-    import pandas as pd
 
     from sklearn.ensemble import RandomForestClassifier
 
@@ -210,38 +203,32 @@ def upload_model(model_file: kfp.components.InputPath()):
 
 data_prep_op = kfp.components.create_component_from_func(
     data_prep,
-    base_image="image-registry.openshift-image-registry.svc:5000/openshift/python:latest",
-    packages_to_install=["pandas", "scikit-learn"],
+    base_image="image-registry.openshift-image-registry.svc:5000/mlops-demo-pipelines/iris-training:latest",
 )
 
 validate_data_op = kfp.components.create_component_from_func(
     validate_data,
-    base_image="image-registry.openshift-image-registry.svc:5000/openshift/python:latest",
-    packages_to_install=["pandas"],
+    base_image="image-registry.openshift-image-registry.svc:5000/mlops-demo-pipelines/iris-training:latest",
 )
 
 train_model_op = kfp.components.create_component_from_func(
     train_model,
-    base_image="image-registry.openshift-image-registry.svc:5000/openshift/python:latest",
-    packages_to_install=["pandas", "scikit-learn"],
+    base_image="image-registry.openshift-image-registry.svc:5000/mlops-demo-pipelines/iris-training:latest",
 )
 
 evaluate_model_op = kfp.components.create_component_from_func(
     evaluate_model,
-    base_image="image-registry.openshift-image-registry.svc:5000/openshift/python:latest",
-    packages_to_install=["pandas", "scikit-learn"],
+    base_image="image-registry.openshift-image-registry.svc:5000/mlops-demo-pipelines/iris-training:latest",
 )
 
 validate_model_op = kfp.components.create_component_from_func(
     validate_model,
-    base_image="image-registry.openshift-image-registry.svc:5000/openshift/python:latest",
-    packages_to_install=["pandas", "scikit-learn"],
+    base_image="image-registry.openshift-image-registry.svc:5000/mlops-demo-pipelines/iris-training:latest",
 )
 
 upload_model_op = kfp.components.create_component_from_func(
     upload_model,
-    base_image="image-registry.openshift-image-registry.svc:5000/openshift/python:latest",
-    packages_to_install=["boto3"],
+    base_image="image-registry.openshift-image-registry.svc:5000/mlops-demo-pipelines/iris-training:latest",
 )
 
 
@@ -320,10 +307,24 @@ def iris_pipeline(model_obc: str = "iris-model"):
 
 
 if __name__ == "__main__":
+
+    kubeflow_endpoint = os.environ["KUBEFLOW_ENDPOINT"]
+
     logger.info(f"Connecting to kfp: {kubeflow_endpoint}")
+
+    # Check if the script is running in a k8s pod
+    # Read the service account token if it is
+    # Get the bearer token from an env var if it is not 
+    sa_token_path = "/run/secrets/kubernetes.io/serviceaccount/token"
+    if os.path.isfile(sa_token_path):
+        with open(sa_token_path, "r") as f:
+            token = f.read().rstrip()
+    else:
+        token = os.environ["BEARER_TOKEN"]
+
     client = kfp_tekton.TektonClient(
         host=urllib.parse.urljoin(kubeflow_endpoint, "/pipeline"),
-        existing_token=bearer_token,
+        existing_token=token,
     )
     result = client.create_run_from_pipeline_func(
         iris_pipeline, arguments={}, experiment_name="iris"
