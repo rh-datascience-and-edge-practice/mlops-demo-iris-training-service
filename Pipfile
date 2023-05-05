@@ -11,6 +11,7 @@ kfp-tekton = "~=1.5.0"
 boto3 = "*"
 python-dotenv = "*"
 loguru = "*"
+skl2onnx = "*"
 
 [dev-packages]
 flake8 = "*"
