@@ -169,6 +169,25 @@ def evaluate_model(
     with open(mlpipeline_metrics_file, "w") as f:
         json.dump(metrics, f)
 
+def convert_model_to_onnx(model_file: kfp.components.InputPath(), onnx_model_file: kfp.components.OutputPath(),):
+    import pickle
+
+    from skl2onnx import convert_sklearn
+
+    from skl2onnx.common.data_types import FloatTensorType
+
+    def load_pickle(object_file):
+        with open(object_file, "rb") as f:
+            target_object = pickle.load(f)
+
+        return target_object
+
+    model = load_pickle(model_file)
+
+    initial_type = [('float_input', FloatTensorType([None, 4]))]
+    onx = convert_sklearn(model, initial_types=initial_type)
+    with open(onnx_model_file, "wb") as f:
+        f.write(onx.SerializeToString())
 
 def upload_model(model_file: kfp.components.InputPath()):
     import os
