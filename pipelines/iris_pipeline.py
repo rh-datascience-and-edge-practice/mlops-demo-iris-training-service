@@ -17,6 +17,7 @@ import pandas as pd
 
 load_dotenv(override=True)
 
+
 def data_prep(
     X_train_file: kfp.components.OutputPath(),
     X_test_file: kfp.components.OutputPath(),
@@ -122,10 +123,13 @@ def validate_model(model_file: kfp.components.InputPath()):
 
     model = load_pickle(model_file)
 
+    feature_names = ["sepalLength", "sepalWidth", "petalLength", "petalWidth"]
     input_values = [[5, 3, 1.6, 0.2]]
 
+    df = pd.DataFrame(data=input_values, columns=feature_names)
+
     print(f"Performing test prediction on {input_values}")
-    result = model.predict(input_values)
+    result = model.predict(df)
 
     print(f"Response: {result}")
 
@@ -307,14 +311,13 @@ def iris_pipeline(model_obc: str = "iris-model"):
 
 
 if __name__ == "__main__":
-
     kubeflow_endpoint = os.environ["KUBEFLOW_ENDPOINT"]
 
     logger.info(f"Connecting to kfp: {kubeflow_endpoint}")
 
     # Check if the script is running in a k8s pod
     # Read the service account token if it is
-    # Get the bearer token from an env var if it is not 
+    # Get the bearer token from an env var if it is not
     sa_token_path = "/run/secrets/kubernetes.io/serviceaccount/token"
     if os.path.isfile(sa_token_path):
         with open(sa_token_path, "r") as f:
