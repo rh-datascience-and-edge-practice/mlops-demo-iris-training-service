@@ -328,7 +328,7 @@ if __name__ == "__main__":
         token = os.environ["BEARER_TOKEN"]
 
     client = kfp_tekton.TektonClient(
-        host=urllib.parse.urljoin(kubeflow_endpoint, "/pipeline"),
+        host=urllib.parse.urljoin(kubeflow_endpoint, "/"),
         existing_token=token,
     )
     result = client.create_run_from_pipeline_func(
