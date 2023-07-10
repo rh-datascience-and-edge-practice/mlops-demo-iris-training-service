@@ -114,6 +114,8 @@ def train_model(
 def validate_model(model_file: kfp.components.InputPath()):
     import pickle
 
+    import pandas as pd
+
     def load_pickle(object_file):
         with open(object_file, "rb") as f:
             target_object = pickle.load(f)
