@@ -17,8 +17,6 @@ import pandas as pd
 
 load_dotenv(override=True)
 
-# os.environ["PYTHONHTTPSVERIFY"] = "0"
-
 def data_prep(
     X_train_file: kfp.components.OutputPath(),
     X_test_file: kfp.components.OutputPath(),
@@ -328,10 +326,16 @@ if __name__ == "__main__":
     else:
         token = os.environ["BEARER_TOKEN"]
 
+    sa_ca_cert = "/run/secrets/kubernetes.io/serviceaccount/service-ca.crt"
+    if os.path.isfile(sa_ca_cert):
+        ssl_ca_cert = sa_ca_cert
+    else:
+        ssl_ca_cert = None
+    
     client = kfp_tekton.TektonClient(
         host=urllib.parse.urljoin(kubeflow_endpoint, "/"),
         existing_token=token,
-        ssl_ca_cert="/run/secrets/kubernetes.io/serviceaccount/service-ca.crt"
+        ssl_ca_cert=ssl_ca_cert,
     )
     result = client.create_run_from_pipeline_func(
         iris_pipeline, arguments={}, experiment_name="iris"
