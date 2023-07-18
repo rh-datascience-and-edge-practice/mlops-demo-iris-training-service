@@ -331,7 +331,7 @@ if __name__ == "__main__":
         ssl_ca_cert = sa_ca_cert
     else:
         ssl_ca_cert = None
-    
+
     client = kfp_tekton.TektonClient(
         host=urllib.parse.urljoin(kubeflow_endpoint, "/"),
         existing_token=token,
