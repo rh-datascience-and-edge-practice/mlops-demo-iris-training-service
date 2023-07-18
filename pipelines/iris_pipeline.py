@@ -17,6 +17,7 @@ import pandas as pd
 
 load_dotenv(override=True)
 
+os.environ["PYTHONHTTPSVERIFY"] = 0
 
 def data_prep(
     X_train_file: kfp.components.OutputPath(),
