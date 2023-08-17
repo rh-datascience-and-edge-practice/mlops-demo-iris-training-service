@@ -124,10 +124,13 @@ def validate_model(model_file: kfp.components.InputPath()):
 
     model = load_pickle(model_file)
 
+    feature_names = ["sepalLength", "sepalWidth", "petalLength", "petalWidth"]
     input_values = [[5, 3, 1.6, 0.2]]
 
+    df = pd.DataFrame(data=input_values, columns=feature_names)
+
     print(f"Performing test prediction on {input_values}")
-    result = model.predict(input_values)
+    result = model.predict(df)
 
     print(f"Response: {result}")
 
@@ -309,14 +312,13 @@ def iris_pipeline(model_obc: str = "iris-model"):
 
 
 if __name__ == "__main__":
-
     kubeflow_endpoint = os.environ["KUBEFLOW_ENDPOINT"]
 
     logger.info(f"Connecting to kfp: {kubeflow_endpoint}")
 
     # Check if the script is running in a k8s pod
     # Read the service account token if it is
-    # Get the bearer token from an env var if it is not 
+    # Get the bearer token from an env var if it is not
     sa_token_path = "/run/secrets/kubernetes.io/serviceaccount/token"
     if os.path.isfile(sa_token_path):
         with open(sa_token_path, "r") as f:
@@ -324,9 +326,16 @@ if __name__ == "__main__":
     else:
         token = os.environ["BEARER_TOKEN"]
 
+    sa_ca_cert = "/run/secrets/kubernetes.io/serviceaccount/service-ca.crt"
+    if os.path.isfile(sa_ca_cert):
+        ssl_ca_cert = sa_ca_cert
+    else:
+        ssl_ca_cert = None
+
     client = kfp_tekton.TektonClient(
-        host=urllib.parse.urljoin(kubeflow_endpoint, "/pipeline"),
+        host=urllib.parse.urljoin(kubeflow_endpoint, "/"),
         existing_token=token,
+        ssl_ca_cert=ssl_ca_cert,
     )
     result = client.create_run_from_pipeline_func(
         iris_pipeline, arguments={}, experiment_name="iris"
